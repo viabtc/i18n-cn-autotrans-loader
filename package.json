@@ -1,0 +1,17 @@
+{
+  "name": "i18n-cn-autotrans-loader",
+  "version": "1.2.1",
+  "description": "自动化替换多语言/国际化占位符，基于中文",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "i18n"
+  ],
+  "dependencies": {
+    "Mutex": "git+https://github.com/Perennials/mutex-node.git"
+  },
+  "author": "alan",
+  "license": "ISC"
+}
