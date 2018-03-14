@@ -10,7 +10,7 @@
 直接在源文件中写中文，组件会自动把中文部分替换成占位符，同时生成语言文件。
 设置 autoS2T为true则自动生成繁体中文版本翻译
 配置说明：
-```$xslt
+```
 config.module.rules.push({
         test: /\.vue$/,
         exclude: [
