@@ -1,6 +1,5 @@
 const loaderUtils = require("loader-utils"),
   path = require("path"),
-  crypto = require("crypto"),
   fs = require("fs"),
   chineseS2T = require("chinese-s2t");
 
