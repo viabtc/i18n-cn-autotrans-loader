@@ -33,8 +33,14 @@ function selectSort(array) {
 
 function upgradeOldLangs(langs, pathPrefix, deprecatedMark) {
   const refrenceCN = 'zh_Hans_CN.json';
-  const originalCN = JSON.parse(fs.readFileSync(path.resolve(pathPrefix + refrenceCN), 'utf8'));
-  const otherLangs = langs.map(file => JSON.parse(fs.readFileSync(path.resolve(pathPrefix + file + '.json'), 'utf8')));
+  let originalCN,otherLangs;
+  try {
+    originalCN = JSON.parse(fs.readFileSync(path.resolve(pathPrefix + refrenceCN), 'utf8'));
+    otherLangs = langs.map(file => JSON.parse(fs.readFileSync(path.resolve(pathPrefix + file + '.json'), 'utf8')));
+  } catch (error) {
+    console.log('no old langs to upgrade');
+    return;
+  }
   otherLangs.forEach((lang, index) => {
     if (lang.version === '2.0') {
       // 版本二说明已经升级过了，不需要处理
@@ -300,14 +306,20 @@ module.exports = function (source, map) {
       let filePath = path.resolve(query.root + path.sep + "zh_Hant_HK.json");
       writeFile(i18nFileContentTraditional, filePath, pageKeyNameArray, query);
     }
-    const otherLangs = otherLangNames.map(file => JSON.parse(
-      fs.readFileSync(path.resolve(query.root + path.sep + file + ".json"), 'utf8'))
-    );
+    const otherLangs = otherLangNames.map(file => {
+      try {
+        return JSON.parse(
+          fs.readFileSync(path.resolve(query.root + path.sep + file + ".json"), 'utf8'))
+      } catch(error) {
+        // 还没有该语言文件
+        return {version: "2.0"}
+      }
+    });
     // 对其他语言的文件进行对比，添加新的项目，标记弃用的项目
     otherLangs.forEach((lang, index) => {
       for (let page in i18nFileContent) {
-        if(!lang[page]){
-          lang[page]={}
+        if (!lang[page]) {
+          lang[page] = {}
         }
         for (let oldKey in lang[page]) {
           if (!i18nFileContent[page][oldKey]) {
@@ -319,7 +331,8 @@ module.exports = function (source, map) {
           }
         }
         for (let key in i18nFileContent[page]) {
-          if (!lang[page][key]){
+          if (!lang[page][key]) {
+            // 如果某语言文件没有该项翻译就把中文先添加进去
             lang[page][key] = i18nFileContent[page][key];
           }
         }
