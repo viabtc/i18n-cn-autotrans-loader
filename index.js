@@ -176,7 +176,7 @@ module.exports = function (source, map) {
         "ig"
       ),
       cnTemplateReplaceReg = new RegExp(
-        "(>|'|\"|})([^\"'>}\\.-]*?[\\u4e00-\\u9fa5]+?[^\"'<{]*?)(<|'|\"|{)",
+        "(>|'|\"|})([^\"'>}\\.-]*?[\\u4e00-\\u9fa5]+?[^\"'<{]*?)(<|'|\"|{)", // 忽略 <!--形式的html注释
         "ig"
       ),
       cnCodeReg = new RegExp(
