@@ -31,6 +31,43 @@ function selectSort(array) {
   return array;
 }
 
+function upgradeOldLangs(langs, pathPrefix, deprecatedMark) {
+  const refrenceCN = 'zh_Hans_CN.json';
+  const originalCN = JSON.parse(fs.readFileSync(path.resolve(pathPrefix + refrenceCN), 'utf8'));
+  const otherLangs = langs.map(file => JSON.parse(fs.readFileSync(path.resolve(pathPrefix + file + '.json'), 'utf8')));
+  otherLangs.forEach((lang, index) => {
+    if (lang.version === '2.0') {
+      // 版本二说明已经升级过了，不需要处理
+      return;
+    }
+    const upgraded = {"version": "2.0"};
+
+    for (let page in originalCN) {
+      upgraded[page] = {};
+      // 对于原来在其他语言中，但中文没有的，标记后保留
+      for (let oldKey in lang[page]) {
+        if (!originalCN[page][oldKey]) {
+          if (oldKey.indexOf(deprecatedMark) < 0) {
+            upgraded[page][deprecatedMark + oldKey] = lang[page][oldKey];
+          } else {
+            upgraded[page][oldKey] = lang[page][oldKey];
+          }
+        }
+      }
+      for (let key in originalCN[page]) {
+        // 先按照中文里面的所有value生成newKey来更改其他语言的key。
+        const newKey = originalCN[page][key].replace(/\s|\r?\n|\r/g, '').slice(0, 8) + '_' + originalCN[page][key].length;
+        if (lang[page] && lang[page][key]) {
+          upgraded[page][newKey] = lang[page][key]; // 都有的只要更新key
+        } else {
+          upgraded[page][newKey] = originalCN[page][key]; // 中文有，其他语言没有的
+        }
+
+      }
+    }
+    fs.writeFileSync(path.resolve(pathPrefix + langs[index] + '.json'), JSON.stringify(upgraded));
+  });
+}
 
 function handleTextGetKey($text, pageContent, repeatFlag, hashLength, pageContentTraditional) {
   let originText = $text.substring(), reg = new RegExp(repeatFlag, "g");
@@ -59,10 +96,7 @@ function writeFile(content, path, pageKeyNameArray, query) {
         // mutex.lock();
         // const file = fs.createWriteStream(path);
         // file.end(fileContent);
-        fs.writeFile(path, fileContent, function (err) {
-          if (err) throw err;
-          console.log("The language has been saved!");
-        });
+        fs.writeFileSync(path, fileContent);
         //console.log("The language has been saved!");
         //mutex.unlock();
       }
@@ -96,6 +130,7 @@ function writeFile(content, path, pageKeyNameArray, query) {
 }
 
 module.exports = function (source, map) {
+
   this.cacheable && this.cacheable();
 
   let urlQuery = this.resourceQuery
@@ -115,6 +150,11 @@ module.exports = function (source, map) {
   if (!fs.existsSync(path.resolve(query.root))) {
     this.emitError(new Error("root path not exist"));
   } else {
+    const otherLangNames = query.targetLangs.filter(item => item !== "zh_Hant_HK");
+    if (query.upgradeLangs) {
+      // 先尝试升级旧语言文件，更新其他语言的key
+      upgradeOldLangs(otherLangNames, query.root + path.sep, query.deprecatedMark || '****DEPRECATED****');
+    }
     let count = 1,
       pageContent = {}, pageContentTraditional = {};
 
@@ -127,11 +167,11 @@ module.exports = function (source, map) {
         "ig"
       ),
       cnTemplateReg = new RegExp(
-        "(?:>|'|\"|})[^\"'>}\\.]*?[\\u4e00-\\u9fa5]+?[^\"'<{]*?(?:<|'|\"|{)",
+        "(?:>|'|\"|})[^\"'>}\\.-]*?[\\u4e00-\\u9fa5]+?[^\"'<{]*?(?:<|'|\"|{)",
         "ig"
       ),
       cnTemplateReplaceReg = new RegExp(
-        "(>|'|\"|})([^\"'>}\\.]*?[\\u4e00-\\u9fa5]+?[^\"'<{]*?)(<|'|\"|{)",
+        "(>|'|\"|})([^\"'>}\\.-]*?[\\u4e00-\\u9fa5]+?[^\"'<{]*?)(<|'|\"|{)",
         "ig"
       ),
       cnCodeReg = new RegExp(
@@ -260,32 +300,31 @@ module.exports = function (source, map) {
       let filePath = path.resolve(query.root + path.sep + "zh_Hant_HK.json");
       writeFile(i18nFileContentTraditional, filePath, pageKeyNameArray, query);
     }
-    const otherFiles = query.targetLangs.filter(item => item !== "zh_Hant_HK");
-    const otherLangs = otherFiles.map(file => JSON.parse(
+    const otherLangs = otherLangNames.map(file => JSON.parse(
       fs.readFileSync(path.resolve(query.root + path.sep + file + ".json"), 'utf8'))
     );
+    // 对其他语言的文件进行对比，添加新的项目，标记弃用的项目
     otherLangs.forEach((lang, index) => {
-      const upgraded = {};
       for (let page in i18nFileContent) {
-        upgraded[page] = {};
-        for (let key in i18nFileContent[page]) {
-          if (lang[page] && lang[page][key]) {
-            upgraded[page][key] = lang[page][key];
-          } else {
-            upgraded[page][key] = i18nFileContent[page][key];
-          }
-          for (let oldKey in lang[page]) {
-            if (!i18nFileContent[page][oldKey]) {
-              if (oldKey.indexOf(query.deprecatedMark) < 0) {
-                upgraded[page][query.deprecatedMark + oldKey] = lang[page][oldKey];
-              } else {
-                upgraded[page][oldKey] = lang[page][oldKey];
-              }
+        if(!lang[page]){
+          lang[page]={}
+        }
+        for (let oldKey in lang[page]) {
+          if (!i18nFileContent[page][oldKey]) {
+            if (oldKey.indexOf(query.deprecatedMark) < 0) {
+              lang[page][query.deprecatedMark + oldKey] = lang[page][oldKey];
+            } else {
+              lang[page][oldKey] = lang[page][oldKey];
             }
           }
         }
+        for (let key in i18nFileContent[page]) {
+          if (!lang[page][key]){
+            lang[page][key] = i18nFileContent[page][key];
+          }
+        }
       }
-      fs.writeFileSync(path.resolve(query.root + path.sep + otherFiles[index] + ".json"), JSON.stringify(upgraded));
+      fs.writeFileSync(path.resolve(query.root + path.sep + otherLangNames[index] + ".json"), JSON.stringify(lang));
     });
 
     //synchronized code block
