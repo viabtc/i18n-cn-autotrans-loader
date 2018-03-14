@@ -10,7 +10,8 @@
     "i18n"
   ],
   "dependencies": {
-    "Mutex": "git+https://github.com/Perennials/mutex-node.git"
+    "Mutex": "git+https://github.com/Perennials/mutex-node.git",
+    "chinese-s2t": "git+https://github.com/foru17/chinese-s2t.git"
   },
   "author": "alan",
   "license": "ISC"
