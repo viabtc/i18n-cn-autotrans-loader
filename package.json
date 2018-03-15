@@ -1,6 +1,6 @@
 {
   "name": "i18n-cn-autotrans-loader",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "自动化替换多语言/国际化占位符，基于中文",
   "main": "index.js",
   "scripts": {
