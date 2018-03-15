@@ -32,7 +32,7 @@ function selectSort(array) {
 
 function upgradeOldLangs(langs, pathPrefix, deprecatedMark) {
   const refrenceCN = 'zh_Hans_CN.json';
-  let originalCN,otherLangs;
+  let originalCN, otherLangs;
   try {
     originalCN = JSON.parse(fs.readFileSync(path.resolve(pathPrefix + refrenceCN), 'utf8'));
     otherLangs = langs.map(file => JSON.parse(fs.readFileSync(path.resolve(pathPrefix + file + '.json'), 'utf8')));
@@ -266,7 +266,7 @@ module.exports = function (source, map) {
       //替换export, 加上 let $t = Vue.prototype.$t;
       source = source.replace(
         /(export\s*?default\s*?\{)/i,
-        "let $t = Vue.prototype.$t;$1"
+        "$1"
       );
       //替换代码文案
       codeResults.forEach((item, index) => {
@@ -275,7 +275,7 @@ module.exports = function (source, map) {
           item.replace(cnCodeReplaceReg, function ($$, $text) {
             const keyName = handleTextGetKey($text, pageContent, query.repeatFlag, query.hashLength, pageContentTraditional);
             return (
-              '$t("' +
+              'Vue.prototype.$t("' +
               (query.prefix ? query.prefix + "." : "") +
               "." +
               pageKeyName +
@@ -309,7 +309,7 @@ module.exports = function (source, map) {
       try {
         return JSON.parse(
           fs.readFileSync(path.resolve(query.root + path.sep + file + ".json"), 'utf8'))
-      } catch(error) {
+      } catch (error) {
         // 还没有该语言文件
         return {version: "2.0"}
       }
