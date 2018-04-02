@@ -70,7 +70,7 @@ function upgradeOldLangs(langs, pathPrefix, deprecatedMark) {
 
       }
     }
-    fs.writeFileSync(path.resolve(pathPrefix + langs[index] + '.json'), JSON.stringify(upgraded));
+    fs.writeFileSync(path.resolve(pathPrefix + langs[index] + '.json'), JSON.stringify(upgraded, null, 4));
   });
 }
 
@@ -92,22 +92,13 @@ function handleTextGetKey($text, pageContent, repeatFlag, hashLength, pageConten
 
 function writeFile(content, path, pageKeyNameArray, query) {
   if (NODE_ENV === "dev" || NODE_ENV === "development") {
-    let fileContent = JSON.stringify(content);
-    fileWriteClock = setTimeout(function () {
-      //写文件
-      if (fileContent.length !== lastContentLength) {
-        lastContentLength = fileContent.length;
-        // var mutex = new Mutex("should_happen_one_at_a_time");
-        // mutex.lock();
-        // const file = fs.createWriteStream(path);
-        // file.end(fileContent);
-        fs.writeFileSync(path, fileContent);
-        //console.log("The language has been saved!");
-        //mutex.unlock();
-      }
-    }, query.cacheTime || 10000);
+    let fileContent = JSON.stringify(content, null, 4);
+    //写文件
+    if (fileContent.length !== lastContentLength) {
+      lastContentLength = fileContent.length;
+      fs.writeFileSync(path, fileContent);
+    }
   } else {
-    //console.log("pageKeyNameArray",pageKeyNameArray)
     //按顺序组织文件
     if (query.writeFile) {
       var sortedArray = selectSort(pageKeyNameArray);
@@ -118,17 +109,11 @@ function writeFile(content, path, pageKeyNameArray, query) {
         fileContent[key] = content[key];
       })
       ;
-      fileContent = JSON.stringify(fileContent);
+      fileContent = JSON.stringify(fileContent, null, 4);
       //写文件
       if (fileContent.length !== lastContentLength) {
         lastContentLength = fileContent.length;
-        //var mutex = new Mutex("should_happen_one_at_a_time");
-        //mutex.lock();
-        // const file = fs.createWriteStream(path);
-        // file.end(fileContent);
         fs.writeFileSync(path, fileContent);
-        //console.log("The language has been saved!");
-        //mutex.unlock();
       }
     }
   }
@@ -155,8 +140,8 @@ module.exports = function (source, map) {
   if (!fs.existsSync(path.resolve(query.root))) {
     this.emitError(new Error("root path not exist"));
   } else {
-    const otherLangNames = query.targetLangs.filter(item => item !== "zh_Hant_HK");
-    if (query.upgradeLangs) {
+    const otherLangNames = query.targetLangs ? query.targetLangs.filter(item => item !== "zh_Hant_HK") : null;
+    if (query.upgradeLangs && otherLangNames) {
       // 先尝试升级旧语言文件，更新其他语言的key
       upgradeOldLangs(otherLangNames, query.root + path.sep, query.deprecatedMark || '****DEPRECATED****');
     }
@@ -298,47 +283,47 @@ module.exports = function (source, map) {
     lastContentLength = 0;
     const filePath = path.resolve(query.root + path.sep + query.originalLang + ".json");
     writeFile(i18nFileContent, filePath, pageKeyNameArray, query);
-
-    if (query.targetLangs.indexOf("zh_Hant_HK") >= 0) {
+    if (query.targetLangs && query.targetLangs.indexOf("zh_Hant_HK") >= 0) {
       i18nFileContentTraditional[pageKeyName] = pageContentTraditional;
       lastContentLength = 0;
       let filePath = path.resolve(query.root + path.sep + "zh_Hant_HK.json");
       writeFile(i18nFileContentTraditional, filePath, pageKeyNameArray, query);
     }
-    const otherLangs = otherLangNames.map(file => {
-      try {
-        return JSON.parse(
-          fs.readFileSync(path.resolve(query.root + path.sep + file + ".json"), 'utf8'))
-      } catch (error) {
-        // 还没有该语言文件
-        return {version: "2.0"}
-      }
-    });
-    // 对其他语言的文件进行对比，添加新的项目，标记弃用的项目
-    otherLangs.forEach((lang, index) => {
-      for (let page in i18nFileContent) {
-        if (!lang[page]) {
-          lang[page] = {}
+    if (otherLangNames) {
+      const otherLangs = otherLangNames.map(file => {
+        try {
+          return JSON.parse(
+            fs.readFileSync(path.resolve(query.root + path.sep + file + ".json"), 'utf8'))
+        } catch (error) {
+          // 还没有该语言文件
+          return {version: "2.0"}
         }
-        for (let oldKey in lang[page]) {
-          if (!i18nFileContent[page][oldKey]) {
-            if (oldKey.indexOf(query.deprecatedMark) < 0) {
-              lang[page][query.deprecatedMark + oldKey] = lang[page][oldKey];
-            } else {
-              lang[page][oldKey] = lang[page][oldKey];
+      });
+      // 对其他语言的文件进行对比，添加新的项目，标记弃用的项目
+      otherLangs.forEach((lang, index) => {
+        for (let page in i18nFileContent) {
+          if (!lang[page]) {
+            lang[page] = {}
+          }
+          for (let oldKey in lang[page]) {
+            if (!i18nFileContent[page][oldKey]) {
+              if (oldKey.indexOf(query.deprecatedMark) < 0) {
+                lang[page][query.deprecatedMark + oldKey] = lang[page][oldKey];
+              } else {
+                lang[page][oldKey] = lang[page][oldKey];
+              }
+            }
+          }
+          for (let key in i18nFileContent[page]) {
+            if (!lang[page][key]) {
+              // 如果某语言文件没有该项翻译就把中文先添加进去
+              lang[page][key] = i18nFileContent[page][key];
             }
           }
         }
-        for (let key in i18nFileContent[page]) {
-          if (!lang[page][key]) {
-            // 如果某语言文件没有该项翻译就把中文先添加进去
-            lang[page][key] = i18nFileContent[page][key];
-          }
-        }
-      }
-      fs.writeFileSync(path.resolve(query.root + path.sep + otherLangNames[index] + ".json"), JSON.stringify(lang));
-    });
-
+        fs.writeFileSync(path.resolve(query.root + path.sep + otherLangNames[index] + ".json"), JSON.stringify(lang, null, 4));
+      });
+    }
     //synchronized code block
 
     this.callback(null, source, map);
