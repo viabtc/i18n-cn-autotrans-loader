@@ -31,17 +31,17 @@ function selectSort(array) {
 }
 
 function upgradeOldLangs(langs, pathPrefix, deprecatedMark) {
-  const refrenceCN = 'zh_Hans_CN.json';
+  const refrenceCN = "zh_Hans_CN.json";
   let originalCN, otherLangs;
   try {
-    originalCN = JSON.parse(fs.readFileSync(path.resolve(pathPrefix + refrenceCN), 'utf8'));
-    otherLangs = langs.map(file => JSON.parse(fs.readFileSync(path.resolve(pathPrefix + file + '.json'), 'utf8')));
+    originalCN = JSON.parse(fs.readFileSync(path.resolve(pathPrefix + refrenceCN), "utf8"));
+    otherLangs = langs.map(file => JSON.parse(fs.readFileSync(path.resolve(pathPrefix + file + ".json"), "utf8")));
   } catch (error) {
-    console.log('no old langs to upgrade');
+    console.log("no old langs to upgrade", error);
     return;
   }
   otherLangs.forEach((lang, index) => {
-    if (lang.version === '2.0') {
+    if (lang.version === "2.0") {
       // 版本二说明已经升级过了，不需要处理
       return;
     }
@@ -172,10 +172,12 @@ module.exports = function (source, map) {
         '"((?:[^">/\\.])*?/{0,1}(?:[^">/\\.])*?[\\u4e00-\\u9fa5]+?(?:[^">/])*?/{0,1}(?:[^">/])*?)"',
         "ig"
       );
-    let sourceArr = source.split("<script>"),
+    let sourceArr = source.replace(/(\/\/.*)|(\/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+\/)/g, '').split("<script>"),
       attrResults = sourceArr[0] ? sourceArr[0].match(cnAttrReg) : null,
-      codeResults = sourceArr[1] ? sourceArr[1].match(cnCodeReg) : null;
-
+      codeResults = sourceArr[1] ? sourceArr[1].match(cnCodeReg) : null,
+      templateResults = sourceArr[0]
+        ? sourceArr[0].match(cnTemplateReg)
+        : null;
     //先替换属性
     if (attrResults) {
       //替换属性文案
@@ -203,11 +205,6 @@ module.exports = function (source, map) {
     }
 
     //根据新的内容替换文本
-    sourceArr = source.split("<script>");
-    let templateResults = sourceArr[0]
-      ? sourceArr[0].match(cnTemplateReg)
-      : null;
-
     if (templateResults) {
       //替换模板文案
       templateResults.slice(0).forEach((item, index) => {
