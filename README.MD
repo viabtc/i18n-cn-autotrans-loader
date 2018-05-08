@@ -22,7 +22,7 @@ config.module.rules.push({
         enforce: "pre",
         options: {
           hashLength: 8,
-          writeFile: true,
+          writeFile: true,  //是否写语言文件，如果在webpack打包的时候写语言文件可能会导致文件写到一半被打包进production的代码中
           repeatFlag: "\\[R\\]",
           root: "locales",
           prefix: "",
