@@ -1,10 +1,14 @@
 {
   "name": "i18n-cn-autotrans-loader",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "自动化替换多语言/国际化占位符，基于中文",
+  "homepage": "https://github.com/viabtc/i18n-cn-autotrans-loader",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bugs": {
+    "url": "https://github.com/viabtc/i18n-cn-autotrans-loader/issues"
   },
   "keywords": [
     "i18n"
