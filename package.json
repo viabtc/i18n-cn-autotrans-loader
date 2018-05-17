@@ -1,6 +1,6 @@
 {
   "name": "i18n-cn-autotrans-loader",
-  "version": "1.2.9",
+  "version": "1.3.0",
   "description": "自动化替换多语言/国际化占位符，基于中文",
   "homepage": "https://github.com/viabtc/i18n-cn-autotrans-loader",
   "main": "index.js",
@@ -15,7 +15,7 @@
   ],
   "dependencies": {
     "chinese-s2t": "git+https://github.com/foru17/chinese-s2t.git",
-    "blueimp-md5": "git+https@github.com:blueimp/JavaScript-MD5.git"
+    "blueimp-md5": "git+https://github.com/blueimp/JavaScript-MD5.git"
   },
   "author": "alan",
   "license": "ISC"
