@@ -1,8 +1,20 @@
 const loaderUtils = require("loader-utils"),
   path = require("path"),
   fs = require("fs"),
-  chineseS2T = require("chinese-s2t");
-
+  chineseS2T = require("chinese-s2t"),
+  md5 = require("blueimp-md5");
+const cnAttrReg = new RegExp(
+  /(?:\s)([^:\s][\w-]+?=)(?:")([^."]*[\u4e00-\u9fa5\u3002\uff1b\uff0c\uff1a\u2018\u2019\u201c\u201d\uff08\uff09\u3001\uff1f\uff01\ufe15\u300a\u300b]+[^"]*)(?:")/,
+  "igm"
+  ),
+  cnCodeReg = new RegExp(
+    /(?:[^=])(?:['"])([\u4e00-\u9fa5\u3002\uff1b\uff0c\uff1a\u2018\u2019\u201c\u201d\uff08\uff09\u3001\uff1f\uff01\ufe15\u300a\u300b]+(?:\s*)[^\'`"</]*)(?:[\'"/])/,
+    "igm"
+  ),
+  cnTemplateReg = new RegExp(
+    /(?:>|'|"|})([^"'>}\.-]*?[\u4e00-\u9fa5\u3002\uff1b\uff0c\uff1a\u2018\u2019\u201c\u201d\uff08\uff09\u3001\uff1f\uff01\ufe15\u300a\u300b]+?[^"'<{]*?)(?:<|'|"|{)/, // 忽略 <!--形式的html注释
+    "igm"
+  );
 
 var i18nFileContent = {},
   i18nFileContentTraditional = {},
@@ -30,235 +42,69 @@ function selectSort(array) {
   return array;
 }
 
-function upgradeOldLangs(langs, pathPrefix, deprecatedMark) {
-  const refrenceCN = "zh_Hans_CN.json";
-  let originalCN, otherLangs;
-  try {
-    originalCN = JSON.parse(fs.readFileSync(path.resolve(pathPrefix + refrenceCN), "utf8"));
-    otherLangs = langs.map(file => JSON.parse(fs.readFileSync(path.resolve(pathPrefix + file + ".json"), "utf8")));
-  } catch (error) {
-    console.log("no old langs to upgrade", error);
-    return;
-  }
-  otherLangs.forEach((lang, index) => {
-    if (lang.version === "2.0") {
-      // 版本二说明已经升级过了，不需要处理
-      return;
-    }
-    const upgraded = {"version": "2.0"};
 
-    for (let page in originalCN) {
-      upgraded[page] = {};
-      // 对于原来在其他语言中，但中文没有的，标记后保留
-      for (let oldKey in lang[page]) {
-        if (!originalCN[page][oldKey]) {
-          if (oldKey.indexOf(deprecatedMark) < 0) {
-            upgraded[page][deprecatedMark + oldKey] = lang[page][oldKey];
-          } else {
-            upgraded[page][oldKey] = lang[page][oldKey];
-          }
-        }
-      }
-      for (let key in originalCN[page]) {
-        // 先按照中文里面的所有value生成newKey来更改其他语言的key。
-        const newKey = originalCN[page][key].replace(/\s|\r?\n|\r/g, '').slice(0, 8) + '_' + originalCN[page][key].length;
-        if (lang[page] && lang[page][key]) {
-          upgraded[page][newKey] = lang[page][key]; // 都有的只要更新key
-        } else {
-          upgraded[page][newKey] = originalCN[page][key]; // 中文有，其他语言没有的
-        }
-
-      }
-    }
-    fs.writeFileSync(path.resolve(pathPrefix + langs[index] + '.json'), JSON.stringify(upgraded, null, 4));
-  });
-}
-
-function handleTextGetKey($text, pageContent, repeatFlag, hashLength, pageContentTraditional) {
-  let originText = $text.substring(), reg = new RegExp(repeatFlag, "g");
-  $text = $text.slice(0).replace(reg, "").trim();
-  let keyName = $text.replace(/\s|\r?\n|\r/g, '').slice(0, Math.max(hashLength, 4) || 8) + '_' + $text.length; //  中文hash小于四个字符比较可能遇到相同开头问题
-  if (reg.test(originText)) {
-    while (pageContent[keyName]) {
-      keyName += "_"
-    }
-  }
-  pageContent[keyName] = $text;
-  if (pageContentTraditional) {
-    pageContentTraditional[keyName] = chineseS2T.s2t($text);
-  }
+function getTextKey($text, repeatReg, hashLength) {
+  let originText = $text.substring();
+  $text = $text.slice(0).replace(repeatReg, "").trim();
+  const keyName = $text.replace(/\s|\r?\n|\r/g, '').slice(0, 8) + ($text.length > 8 ? ('_' + md5($text).slice(0, hashLength)) : ''); //  八个首字符+hash
   return keyName;
 }
 
-function writeFile(content, path, pageKeyNameArray, query) {
-  if (NODE_ENV === "dev" || NODE_ENV === "development") {
-    let fileContent = JSON.stringify(content, null, 4);
-    //写文件
-    if (fileContent.length !== lastContentLength) {
-      lastContentLength = fileContent.length;
-      fs.writeFileSync(path, fileContent);
-    }
-  } else {
-    //按顺序组织文件
-    if (query.writeFile) {
-      var sortedArray = selectSort(pageKeyNameArray);
-
-      let fileContent = {};
-      sortedArray.forEach(function (key) {
-        //按顺序写key
-        fileContent[key] = content[key];
-      })
-      ;
-      fileContent = JSON.stringify(fileContent, null, 4);
-      //写文件
-      if (fileContent.length !== lastContentLength) {
-        lastContentLength = fileContent.length;
-        fs.writeFileSync(path, fileContent);
-      }
-    }
-  }
+function getOldTextKey($text, repeatReg) {
+  let originText = $text.substring();
+  $text = $text.slice(0).replace(repeatReg, "").trim();
+  const keyName = $textkeyName = $text.replace(/\s|\r?\n|\r/g, '').slice(0, 8) + '_' + $text.length;//  旧的key
+  return keyName;
 }
 
-module.exports = function (source, map) {
+function createIfNotExist(root, filename) {
+  const filePath = path.resolve(root + path.sep + filename + ".json");
+  fs.writeFile(filePath, "{}", {flag: 'wx'}, function (err) {
+    // error 说明文件已经存在不需要处理
+  });
+}
 
-  this.cacheable && this.cacheable();
+function getSortedObjectString(unordered) {
+  const ordered = {};
+  Object.keys(unordered).sort().forEach(function (key) {
+    ordered[key] = unordered[key];
+  });
+  return JSON.stringify(ordered, null, 4);
+}
 
-  let urlQuery = this.resourceQuery
-    ? loaderUtils.parseQuery(this.resourceQuery)
-    : null;
-  const query = Object.assign({}, loaderUtils.getOptions(this), urlQuery);
+let repeatReg;
 
-  let relativePath = this.resourcePath.replace(path.resolve(".") + "/", ""),
-    pathArray = relativePath.split("/"),
-    pageKeyName = pathArray.join("_").replace(".", "_");
-
-  //去重
-  if (pageKeyNameArray.indexOf(pageKeyName) === -1) {
-    pageKeyNameArray.push(pageKeyName);
-  }
-
-  if (!fs.existsSync(path.resolve(query.root))) {
-    this.emitError(new Error("root path not exist"));
-  } else {
-    const otherLangNames = query.targetLangs ? query.targetLangs.filter(item => item !== "zh_Hant_HK") : null;
-    if (query.upgradeLangs && otherLangNames) {
-      // 先尝试升级旧语言文件，更新其他语言的key
-      upgradeOldLangs(otherLangNames, query.root + path.sep, query.deprecatedMark || '****DEPRECATED****');
+function extractAndReplaceChinese(pageKeyName, source, repeatReg, prefix, hashLength) {
+  // 去掉comments
+  const withoutComment = source
+    .replace(/([^:]\/\/.*)|(\/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+\/)/g, '')
+    .replace(/\/\/\s*disable-autoi18n[\s\S]*\/\/\s*disable-autoi18n-end/, ''); // prevent plugin replacing code outside vue instance
+  const script = withoutComment.match(/\<script\>([\s\S]*?)\<\/script\>/igm);
+  const template = withoutComment.match(/\<template\>([\s\S]*)\<\/template\>/igm);
+  const pageContent = {};
+  if (script && script[0] && script[0].length) {
+    const importVue = script[0].match(/import\s+Vue\s+from/)
+    if (!importVue || importVue.length === 0) {
+      source = source.replace(/\<script\>/igm, '<script> \n import Vue from "vue"');
     }
-    let count = 1,
-      pageContent = {}, pageContentTraditional = {};
-
-    const cnAttrReg = new RegExp(
-      '\\b[\\w-]+?="[^">]*?[\\u4e00-\\u9fa5]+?[^">]*?"',
-      "ig"
-      ),
-      cnAttrReplaceReg = new RegExp(
-        '\\b([\\w-]+?=)"([^">]*?[\\u4e00-\\u9fa5]+?[^">]*?)"',
-        "ig"
-      ),
-      cnTemplateReg = new RegExp(
-        "(?:>|'|\"|})[^\"'>}\\.-]*?[\\u4e00-\\u9fa5]+?[^\"'<{]*?(?:<|'|\"|{)",
-        "ig"
-      ),
-      cnTemplateReplaceReg = new RegExp(
-        "(>|'|\"|})([^\"'>}\\.-]*?[\\u4e00-\\u9fa5]+?[^\"'<{]*?)(<|'|\"|{)", // 忽略 <!--形式的html注释
-        "ig"
-      ),
-      cnCodeReg = new RegExp(
-        '"(?:[^">/\\.])*?/{0,1}(?:[^">/\\.])*?[\\u4e00-\\u9fa5]+?(?:[^">/])*?/{0,1}[^">/]*?"',
-        "ig"
-      ),
-      cnCodeReplaceReg = new RegExp(
-        '"((?:[^">/\\.])*?/{0,1}(?:[^">/\\.])*?[\\u4e00-\\u9fa5]+?(?:[^">/])*?/{0,1}(?:[^">/])*?)"',
-        "ig"
-      );
-    let sourceArr = source.replace(/(\/\/.*)|(\/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+\/)/g, '').split("<script>"),
-      attrResults = sourceArr[0] ? sourceArr[0].match(cnAttrReg) : null,
-      codeResults = sourceArr[1] ? sourceArr[1].match(cnCodeReg) : null,
-      templateResults = sourceArr[0]
-        ? sourceArr[0].match(cnTemplateReg)
-        : null;
-    //先替换属性
-    if (attrResults) {
-      //替换属性文案
-      attrResults.forEach((item, index) => {
-        source = source.replace(
-          item,
-          item.replace(cnAttrReplaceReg, function ($$, $attr, $text) {
-            const keyName = handleTextGetKey(
-              $text, pageContent, query.repeatFlag, query.hashLength, pageContentTraditional
-            );
-            return (
-              ":" +
-              $attr +
-              "\"$t('" +
-              query.prefix +
-              "." +
-              pageKeyName +
-              "." +
-              keyName +
-              "')\""
-            );
-          })
-        );
-      });
-    }
-
-    //根据新的内容替换文本
-    if (templateResults) {
-      //替换模板文案
-      templateResults.slice(0).forEach((item, index) => {
-        source = source.replace(
-          item,
-          item.replace(cnTemplateReplaceReg, function ($$,
-            $left,
-            $text,
-            $right) {
-            const keyName = handleTextGetKey($text, pageContent, query.repeatFlag, query.hashLength, pageContentTraditional);
-            let res = "";
-
-            if ($text) {
-              if (/>|}/.test(item[0]) || /<|{/.test(item[item.length - 1])) {
-                res =
-                  $left +
-                  '{{$t("' +
-                  (query.prefix ? query.prefix + "." : "") +
-                  pageKeyName +
-                  "." +
-                  keyName +
-                  '")}}' +
-                  $right;
-              } else {
-                res =
-                  '$t("' +
-                  (query.prefix ? query.prefix + "." : "") +
-                  pageKeyName +
-                  "." +
-                  keyName +
-                  '")';
-              }
-            }
-            return res;
-          })
-        );
-      });
-    }
-
+    const codeResults = script[0].match(cnCodeReg);
     if (codeResults) {
-      //替换export, 加上 let $t = Vue.prototype.$t;
-      source = source.replace(
-        /(export\s*?default\s*?\{)/i,
-        "$1"
-      );
       //替换代码文案
       codeResults.forEach((item, index) => {
         source = source.replace(
           item,
-          item.replace(cnCodeReplaceReg, function ($$, $text) {
-            const keyName = handleTextGetKey($text, pageContent, query.repeatFlag, query.hashLength, pageContentTraditional);
+          item.replace(cnCodeReg, function (_matched, $text) {
+            // $text is the first captrued group
+            let keyName = getTextKey($text, repeatReg, hashLength);
+            if (repeatReg.test($text)) {
+              while (pageContent[keyName]) {
+                keyName += "_"
+              }
+            }
+            pageContent[keyName] = $text;
             return (
-              'Vue.prototype.$t("' +
-              (query.prefix ? query.prefix + "." : "") +
+              item[0] + 'Vue.prototype.$t("' +
+              (prefix ? prefix + "." : "") +
               "." +
               pageKeyName +
               "." +
@@ -269,61 +115,238 @@ module.exports = function (source, map) {
         );
       });
     }
-
-    i18nFileContent[pageKeyName] = pageContent;
-    i18nFileContentTraditional[pageKeyName] = pageContentTraditional;
-
-    clearTimeout(fileWriteClock);
-    fileWriteClock = 0;
-
-
-    lastContentLength = 0;
-    const filePath = path.resolve(query.root + path.sep + query.originalLang + ".json");
-    writeFile(i18nFileContent, filePath, pageKeyNameArray, query);
-    if (query.targetLangs && query.targetLangs.indexOf("zh_Hant_HK") >= 0) {
-      i18nFileContentTraditional[pageKeyName] = pageContentTraditional;
-      lastContentLength = 0;
-      let filePath = path.resolve(query.root + path.sep + "zh_Hant_HK.json");
-      writeFile(i18nFileContentTraditional, filePath, pageKeyNameArray, query);
-    }
-    if (otherLangNames) {
-      const otherLangs = otherLangNames.map(file => {
-        try {
-          return JSON.parse(
-            fs.readFileSync(path.resolve(query.root + path.sep + file + ".json"), 'utf8'))
-        } catch (error) {
-          // 还没有该语言文件
-          return {version: "2.0"}
-        }
-      });
-      // 对其他语言的文件进行对比，添加新的项目，标记弃用的项目
-      otherLangs.forEach((lang, index) => {
-        for (let page in i18nFileContent) {
-          if (!lang[page]) {
-            lang[page] = {}
-          }
-          for (let oldKey in lang[page]) {
-            if (!i18nFileContent[page][oldKey]) {
-              if (oldKey.indexOf(query.deprecatedMark) < 0) {
-                lang[page][query.deprecatedMark + oldKey] = lang[page][oldKey];
-              } else {
-                lang[page][oldKey] = lang[page][oldKey];
+  }
+  if (template && template[0] && template[0].length) {
+    const attrResults = template[0].match(cnAttrReg);
+    if (attrResults) {
+      attrResults.forEach((item, index) => {
+        source = source.replace(
+          item,
+          item.replace(cnAttrReg, function ($$, $attr, $text) {
+            let keyName = getTextKey($text, repeatReg, hashLength);
+            if (repeatReg.test($text)) {
+              while (pageContent[keyName]) {
+                keyName += "_"
               }
             }
-          }
-          for (let key in i18nFileContent[page]) {
-            if (!lang[page][key]) {
-              // 如果某语言文件没有该项翻译就把中文先添加进去
-              lang[page][key] = i18nFileContent[page][key];
-            }
-          }
-        }
-        fs.writeFileSync(path.resolve(query.root + path.sep + otherLangNames[index] + ".json"), JSON.stringify(lang, null, 4));
-      });
-    }
-    //synchronized code block
+            pageContent[keyName] = $text;
+            return (
+              ' :' +
+              $attr +
+              '\"$t(\'' +
+              prefix +
+              '.' +
+              pageKeyName +
+              '.' +
+              keyName +
+              '\')\"'
+            );
+          })
+        );
 
-    this.callback(null, source, map);
+      })
+    }
+    const textResults = template[0].match(cnTemplateReg);
+    if (textResults) {
+      textResults.forEach((item, index) => {
+        source = source.replace(
+          item,
+          item.replace(cnTemplateReg, function ($$, $text) {
+            const keyName = getTextKey($text, repeatReg, hashLength);
+            if (repeatReg.test($text)) {
+              while (pageContent[keyName]) {
+                keyName += "_"
+              }
+            }
+            pageContent[keyName] = $text;
+            let res = "";
+            if ($text) {
+              if (/>|}/.test(item[0]) || /<|{/.test(item[item.length - 1])) {
+                res =
+                  item[0] +
+                  '{{$t("' +
+                  (prefix ? prefix + "." : "") +
+                  pageKeyName +
+                  "." +
+                  keyName +
+                  '")}}' + item[item.length - 1];
+              } else {
+
+                res =
+                  '$t("' +
+                  (prefix ? prefix + "." : "") +
+                  pageKeyName +
+                  "." +
+                  keyName +
+                  '")';
+              }
+            }
+            return res;
+          })
+        );
+
+      })
+    }
+  }
+  return {source, pageContent};
+}
+
+module.exports = function (source, map) {
+  this.cacheable && this.cacheable(); // disable cache
+
+  // handle query options
+  const urlQuery = this.resourceQuery
+    ? loaderUtils.parseQuery(this.resourceQuery)
+    : null;
+  const query = Object.assign({}, loaderUtils.getOptions(this), urlQuery);
+
+  // file path
+  const relativePath = this.resourcePath.replace(path.resolve(".") + "/", "");
+  const pathArray = relativePath.split("/");
+  const pageKeyName = pathArray.join("_").replace(".", "_");
+  if (query.showLog) {
+    console.log(pageKeyName, '********************************');
+  }
+  if (!fs.existsSync(path.resolve(query.root))) {
+    this.emitError(new Error("root path not exist"));
     return;
   }
+  repeatReg = new RegExp(query.repeatFlag, "g");
+  if (query.upgradeLangs) {
+    upgradeOldLangs(query.root, query.originalLang, query.targetLangs, repeatReg, query.deprecatedMark, query.hashLength)
+  }
+  // create all necessary files
+  createIfNotExist(query.root, query.originalLang);
+  for (let name of query.targetLangs) {
+    createIfNotExist(query.root, name);
+  }
+
+  const result = extractAndReplaceChinese(pageKeyName, source, repeatReg, query.prefix, query.hashLength);
+  source = result.source;
+  const pageContent = result.pageContent;
+  if (query.showLog) {
+    console.log('updating zh_Hans_CN.json')
+  }
+  writeContentToFile(query.root, query.originalLang, pageKeyName, pageContent, query.deprecatedMark, true); // 简中直接替换就好了
+
+  if (query.targetLangs && query.targetLangs.length) {
+    query.targetLangs.forEach(lang => {
+      if (query.showLog) {
+        console.log('updating ' + lang + '.json')
+      }
+      if (lang === 'zh_Hant_HK') {
+        const traditionalContent = s2tTranslation(pageContent);
+        writeContentToFile(query.root, 'zh_Hant_HK', pageKeyName, traditionalContent, query.deprecatedMark, true); // 繁中也是直接替换就好了
+      } else {
+        writeContentToFile(query.root, lang, pageKeyName, pageContent, query.deprecatedMark, false);
+      }
+    })
+  }
+
+  this.callback(null, source, map);
+  return;
 };
+
+function writeContentToFile(root, filename, pageKeyName, pageContent, deprecatedMark = '****DEPRECATED****', replaceDirectly) {
+  const filePath = path.resolve(root + path.sep + filename + ".json");
+  const content = JSON.parse(fs.readFileSync(filePath, "utf8"));
+  if (sameKeys(content[pageKeyName], pageContent)) {
+    // key 没有变就不需要写文件了
+    return
+  }
+  if (replaceDirectly || !content[pageKeyName]) {
+    content[pageKeyName] = pageContent;
+  } else {
+    const merged = {}
+    const lang = content[pageKeyName]
+    for (let langKey in lang) {
+      if (!langKey || !lang.hasOwnProperty(langKey)) {
+        continue;
+      }
+      if (pageContent[langKey] || (langKey.indexOf(deprecatedMark) >= 0)) {
+        merged[langKey] = lang[langKey]
+      } else {
+        merged[langKey + deprecatedMark] = lang[langKey]
+      }
+    }
+    for (let key in pageContent) {
+      if (!lang[key]) {
+        merged[key] = pageContent[key]
+      }
+    }
+    content[pageKeyName] = merged;
+  }
+  content.autoi18n_version = 3;
+  const sorted = getSortedObjectString(content);
+  fs.writeFileSync(filePath, sorted);
+}
+
+function sameKeys(oldPage, newPage) {
+  if (!oldPage || !newPage) {
+    return false;
+  }
+  const oldkeys = Object.keys(oldPage).sort();
+  const newkeys = Object.keys(newPage).sort();
+
+  if (oldkeys.length !== newkeys.length) {
+    return false;
+  }
+  for (let index in oldkeys) {
+    if (oldkeys[index] !== newkeys[index]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function s2tTranslation(simplified) {
+  const traditional = {}
+  for (let prop in simplified) {
+    traditional[prop] = chineseS2T.s2t(simplified[prop])
+  }
+  return traditional
+}
+
+function upgradeOldLangs(root, original, targetLangs, repeatReg, deprecatedMark = '****DEPRECATED****', hashLength) {
+  const originalPath = path.resolve(root + path.sep + original + ".json");
+  const originalContent = JSON.parse(fs.readFileSync(originalPath, "utf8"));
+  const upgradeKeys = {}
+  for (let page in originalContent) {
+    upgradeKeys[page] = {}
+    for (let key in originalContent[page]) {
+      const oldKey = getOldTextKey(originalContent[page][key])
+      if (key.indexOf(deprecatedMark) >= 0 || oldKey === undefined) {
+        upgradeKeys[page][key] = key
+      } else {
+        upgradeKeys[page][oldKey] = getTextKey(originalContent[page][key], repeatReg, hashLength)
+      }
+    }
+  }
+  for (let lang of targetLangs) {
+    const filePath = path.resolve(root + path.sep + lang + ".json")
+    const langContent = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    if (langContent.autoi18n_version === 3) {
+      return;
+    }
+    console.log('upgrade ' + lang);
+    const newContent = {autoi18n_version: 3}
+    for (let page in langContent) {
+      if (page.indexOf('version') >= 0) {
+        continue
+      }
+      if (!newContent[page]) {
+        newContent[page] = {}
+      }
+      if (!upgradeKeys[page]) {
+        console.log(page, '!!!!!! page not in cn, maybe deprecated, please check json files!!!!!!')
+        newContent[page] = langContent[page]
+      } else {
+        for (let key in langContent[page]) {
+          newContent[page][upgradeKeys[page][key] || key] = langContent[page][key]
+        }
+      }
+    }
+    const sorted = getSortedObjectString(newContent);
+    fs.writeFileSync(filePath, sorted);
+  }
+}
