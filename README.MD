@@ -3,7 +3,8 @@
 ## 环境
 
 1. vue
-2. i18n
+2. nuxt
+3. i18n
 
 ## 用法
 
@@ -22,6 +23,7 @@ config.module.rules.push({
         enforce: "pre",
         options: {
           hashLength: 4,
+          writeFile: true,  //是否写语言文件，如果在webpack打包的时候写语言文件可能会导致文件写到一半被打包进production的代码中
           repeatFlag: "\\[R\\]",
           root: "locales",
           upgradeLangs:false, // 第一次升级用true
@@ -68,7 +70,7 @@ this.alertMsg = "您的卖出价（" + this.inputPrice + "）低于最新成交�
 
 ## 不支持的语法
 
-1. 中文中包含 <> {} 等符号，请使用&lt;形式转义
+1. 中文中包含 <> {} - 等符号，请使用&lt;形式转义
 2. 用`包裹拼接的字符串模板
 3. template 里面绑定的中文字符串，例如 :placeholder="show?'内容':'测试'"，这种情况请放在script部分处理
 4. jsx形式的模板内容
