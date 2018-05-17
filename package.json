@@ -14,7 +14,8 @@
     "i18n"
   ],
   "dependencies": {
-    "chinese-s2t": "git+https://github.com/foru17/chinese-s2t.git"
+    "chinese-s2t": "git+https://github.com/foru17/chinese-s2t.git",
+    "blueimp-md5": "git+https@github.com:blueimp/JavaScript-MD5.git"
   },
   "author": "alan",
   "license": "ISC"
