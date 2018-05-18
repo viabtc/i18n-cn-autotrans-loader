@@ -67,7 +67,11 @@ this.alertMsg = "您的卖出价（" + this.inputPrice + "）低于最新成交�
 
 1. 部分文案会被标记为deprecated，请检查是否标记错误
 2. 目标语言中如果出现中文value请检查是否漏翻译或者被误标记为deprecated
-
+3. 使用nuxt等编译的时候注意检查config option和脚本运行顺序：
+    * 需要有一个 nuxt.lang.config.js 用于提取文案更新翻译json，此文件需要设置writeFile:true
+    * 其他配置文件例如 nuxt.config.js 用于改写vue文件，此文件需要设置writeFile:false, 否则可能在插件写json文件的时候被打包，引起错误
+    * 两个config里面的hashLength必须保持一致！！！！！
+    * 执行打包代码应该分两步，先提取语言，后改写vue，例如：npm run build-lang && cross-env NODE_ENV=production MODE=production nuxt build
 ## 不支持的语法
 
 1. 中文中包含 <> {} - 等符号，请使用&lt;形式转义
