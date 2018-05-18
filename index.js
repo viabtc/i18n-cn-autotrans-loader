@@ -46,7 +46,7 @@ function selectSort(array) {
 function getTextKey($text, repeatReg, hashLength) {
   let originText = $text.substring();
   $text = $text.slice(0).replace(repeatReg, "").trim();
-  const keyName = $text.replace(/\s|\r?\n|\r/g, '').slice(0, 8) + ($text.length > 8 ? ('_' + md5($text).slice(0, hashLength)) : ''); //  八个首字符+hash
+  const keyName = $text.replace(/\s|\r?\n|\r/g, '').slice(0, 8) + ($text.length > 8 ? (md5($text).slice(0, hashLength)) : ''); //  八个首字符+hash
   return keyName;
 }
 
@@ -227,21 +227,24 @@ module.exports = function (source, map) {
   if (query.showLog) {
     console.log('updating zh_Hans_CN.json')
   }
-  writeContentToFile(query.root, query.originalLang, pageKeyName, pageContent, query.deprecatedMark, true); // 简中直接替换就好了
+  if(query.writeFile){
+    writeContentToFile(query.root, query.originalLang, pageKeyName, pageContent, query.deprecatedMark, true); // 简中直接替换就好了
 
-  if (query.targetLangs && query.targetLangs.length) {
-    query.targetLangs.forEach(lang => {
-      if (query.showLog) {
-        console.log('updating ' + lang + '.json')
-      }
-      if (lang === 'zh_Hant_HK') {
-        const traditionalContent = s2tTranslation(pageContent);
-        writeContentToFile(query.root, 'zh_Hant_HK', pageKeyName, traditionalContent, query.deprecatedMark, true); // 繁中也是直接替换就好了
-      } else {
-        writeContentToFile(query.root, lang, pageKeyName, pageContent, query.deprecatedMark, false);
-      }
-    })
+    if (query.targetLangs && query.targetLangs.length) {
+      query.targetLangs.forEach(lang => {
+        if (query.showLog) {
+          console.log('updating ' + lang + '.json')
+        }
+        if (lang === 'zh_Hant_HK') {
+          const traditionalContent = s2tTranslation(pageContent);
+          writeContentToFile(query.root, 'zh_Hant_HK', pageKeyName, traditionalContent, query.deprecatedMark, true); // 繁中也是直接替换就好了
+        } else {
+          writeContentToFile(query.root, lang, pageKeyName, pageContent, query.deprecatedMark, false);
+        }
+      })
+    }
   }
+
 
   this.callback(null, source, map);
   return;
