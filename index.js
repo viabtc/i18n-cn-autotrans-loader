@@ -227,7 +227,8 @@ module.exports = function (source, map) {
   if (query.showLog) {
     console.log('updating zh_Hans_CN.json')
   }
-  if(query.writeFile){
+  NODE_ENV = process.env.NODE_ENV
+  if (NODE_ENV === 'dev' || NODE_ENV === 'development' || query.writeFile) {
     writeContentToFile(query.root, query.originalLang, pageKeyName, pageContent, query.deprecatedMark, true); // 简中直接替换就好了
 
     if (query.targetLangs && query.targetLangs.length) {
@@ -269,6 +270,7 @@ function writeContentToFile(root, filename, pageKeyName, pageContent, deprecated
       if (pageContent[langKey] || (langKey.indexOf(deprecatedMark) >= 0)) {
         merged[langKey] = lang[langKey]
       } else {
+        merged[langKey] = lang[langKey] // 不改变原来的，避免误标记
         merged[langKey + deprecatedMark] = lang[langKey]
       }
     }
@@ -281,21 +283,25 @@ function writeContentToFile(root, filename, pageKeyName, pageContent, deprecated
   }
   content.autoi18n_version = 3;
   const sorted = getSortedObjectString(content);
-  fs.writeFileSync(filePath, sorted);
+  setTimeout(()=>{ // timeout之后再写文件，否则webpack不会打包json文件更新
+    console.log('write file ' + filename)
+    fs.writeFileSync(filePath, sorted);
+  },1000)
+
 }
 
 function sameKeys(oldPage, newPage) {
   if (!oldPage || !newPage) {
     return false;
   }
-  const oldkeys = Object.keys(oldPage).sort();
+  const oldkeys = Object.keys(oldPage).filter(k => k.indexOf('DEPRECATED') < 0).sort();
   const newkeys = Object.keys(newPage).sort();
-
   if (oldkeys.length !== newkeys.length) {
     return false;
   }
   for (let index in oldkeys) {
     if (oldkeys[index] !== newkeys[index]) {
+      console.log('keyChanged: ', oldkeys[index], newkeys[index])
       return false;
     }
   }
