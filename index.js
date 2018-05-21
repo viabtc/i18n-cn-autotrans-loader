@@ -45,7 +45,7 @@ function selectSort(array) {
 
 function getTextKey($text, repeatReg, hashLength) {
   let originText = $text.substring();
-  $text = $text.slice(0).replace(repeatReg, "").trim();
+  $text = originText.slice(0).replace(repeatReg, "").trim();
   const keyName = $text.replace(/\s|\r?\n|\r/g, '').slice(0, 8) + ($text.length > 8 ? ('_' + md5($text).slice(0, hashLength)) : ''); //  八个首字符+hash
   return keyName;
 }
