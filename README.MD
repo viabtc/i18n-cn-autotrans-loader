@@ -74,7 +74,7 @@ this.alertMsg = "您的卖出价（" + this.inputPrice + "）低于最新成交�
     * 执行打包代码应该分两步，先提取语言，后改写vue，例如：npm run build-lang && cross-env NODE_ENV=production MODE=production nuxt build
 ## 不支持的语法
 
-1. 中文中包含 <> {} - 等符号，请使用&lt;形式转义
+1. 中文中包含 <> {} - 等符号，请使用<span>&lt;</span>形式转义并和中文分隔开
 2. 用`包裹拼接的字符串模板
 3. template 里面绑定的中文字符串，例如 :placeholder="show?'内容':'测试'"，这种情况请放在script部分处理
 4. jsx形式的模板内容

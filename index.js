@@ -45,8 +45,8 @@ function selectSort(array) {
 
 function getTextKey($text, repeatReg, hashLength) {
   let originText = $text.substring();
-  $text = $text.slice(0).replace(repeatReg, "").trim();
-  const keyName = $text.replace(/\s|\r?\n|\r/g, '').slice(0, 8) + ($text.length > 8 ? (md5($text).slice(0, hashLength)) : ''); //  八个首字符+hash
+  $text = originText.slice(0).replace(repeatReg, "").trim();
+  const keyName = $text.replace(/\s|\r?\n|\r/g, '').slice(0, 8) + ($text.length > 8 ? ('_' + md5($text).slice(0, hashLength)) : ''); //  八个首字符+hash
   return keyName;
 }
 
@@ -227,7 +227,8 @@ module.exports = function (source, map) {
   if (query.showLog) {
     console.log('updating zh_Hans_CN.json')
   }
-  if(query.writeFile){
+  NODE_ENV = process.env.NODE_ENV
+  if (NODE_ENV === 'dev' || NODE_ENV === 'development' || query.writeFile) {
     writeContentToFile(query.root, query.originalLang, pageKeyName, pageContent, query.deprecatedMark, true); // 简中直接替换就好了
 
     if (query.targetLangs && query.targetLangs.length) {
@@ -251,51 +252,57 @@ module.exports = function (source, map) {
 };
 
 function writeContentToFile(root, filename, pageKeyName, pageContent, deprecatedMark = '****DEPRECATED****', replaceDirectly) {
-  const filePath = path.resolve(root + path.sep + filename + ".json");
-  const content = JSON.parse(fs.readFileSync(filePath, "utf8"));
-  if (sameKeys(content[pageKeyName], pageContent)) {
-    // key 没有变就不需要写文件了
-    return
-  }
-  if (replaceDirectly || !content[pageKeyName]) {
-    content[pageKeyName] = pageContent;
-  } else {
-    const merged = {}
-    const lang = content[pageKeyName]
-    for (let langKey in lang) {
-      if (!langKey || !lang.hasOwnProperty(langKey)) {
-        continue;
-      }
-      if (pageContent[langKey] || (langKey.indexOf(deprecatedMark) >= 0)) {
-        merged[langKey] = lang[langKey]
-      } else {
-        merged[langKey + deprecatedMark] = lang[langKey]
-      }
+  setTimeout(() => {
+    const filePath = path.resolve(root + path.sep + filename + ".json");
+    const content = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    if (sameKeys(content[pageKeyName], pageContent)) {
+      // key 没有变就不需要写文件了
+      return
     }
-    for (let key in pageContent) {
-      if (!lang[key]) {
-        merged[key] = pageContent[key]
+    if (replaceDirectly || !content[pageKeyName]) {
+      content[pageKeyName] = pageContent;
+    } else {
+      const merged = {}
+      const lang = content[pageKeyName]
+      for (let langKey in lang) {
+        if (!langKey || !lang.hasOwnProperty(langKey)) {
+          continue;
+        }
+        if (pageContent[langKey] || (langKey.indexOf(deprecatedMark) >= 0)) {
+          merged[langKey] = lang[langKey]
+        } else {
+          merged[langKey] = lang[langKey] // 不改变原来的，避免误标记
+          merged[langKey + deprecatedMark] = lang[langKey]
+        }
       }
+      for (let key in pageContent) {
+        if (!lang[key]) {
+          merged[key] = pageContent[key]
+        }
+      }
+      content[pageKeyName] = merged;
     }
-    content[pageKeyName] = merged;
-  }
-  content.autoi18n_version = 3;
-  const sorted = getSortedObjectString(content);
-  fs.writeFileSync(filePath, sorted);
+    content.autoi18n_version = 3;
+    const sorted = getSortedObjectString(content);
+
+    console.log('write file ' + filename)
+    fs.writeFileSync(filePath, sorted);
+  }, 1000)
+
 }
 
 function sameKeys(oldPage, newPage) {
   if (!oldPage || !newPage) {
     return false;
   }
-  const oldkeys = Object.keys(oldPage).sort();
+  const oldkeys = Object.keys(oldPage).filter(k => k.indexOf('DEPRECATED') < 0).sort();
   const newkeys = Object.keys(newPage).sort();
-
   if (oldkeys.length !== newkeys.length) {
     return false;
   }
   for (let index in oldkeys) {
     if (oldkeys[index] !== newkeys[index]) {
+      console.log('keyChanged: ', oldkeys[index], newkeys[index])
       return false;
     }
   }
