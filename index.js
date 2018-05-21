@@ -252,41 +252,42 @@ module.exports = function (source, map) {
 };
 
 function writeContentToFile(root, filename, pageKeyName, pageContent, deprecatedMark = '****DEPRECATED****', replaceDirectly) {
-  const filePath = path.resolve(root + path.sep + filename + ".json");
-  const content = JSON.parse(fs.readFileSync(filePath, "utf8"));
-  if (sameKeys(content[pageKeyName], pageContent)) {
-    // key 没有变就不需要写文件了
-    return
-  }
-  if (replaceDirectly || !content[pageKeyName]) {
-    content[pageKeyName] = pageContent;
-  } else {
-    const merged = {}
-    const lang = content[pageKeyName]
-    for (let langKey in lang) {
-      if (!langKey || !lang.hasOwnProperty(langKey)) {
-        continue;
-      }
-      if (pageContent[langKey] || (langKey.indexOf(deprecatedMark) >= 0)) {
-        merged[langKey] = lang[langKey]
-      } else {
-        merged[langKey] = lang[langKey] // 不改变原来的，避免误标记
-        merged[langKey + deprecatedMark] = lang[langKey]
-      }
+  setTimeout(() => {
+    const filePath = path.resolve(root + path.sep + filename + ".json");
+    const content = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    if (sameKeys(content[pageKeyName], pageContent)) {
+      // key 没有变就不需要写文件了
+      return
     }
-    for (let key in pageContent) {
-      if (!lang[key]) {
-        merged[key] = pageContent[key]
+    if (replaceDirectly || !content[pageKeyName]) {
+      content[pageKeyName] = pageContent;
+    } else {
+      const merged = {}
+      const lang = content[pageKeyName]
+      for (let langKey in lang) {
+        if (!langKey || !lang.hasOwnProperty(langKey)) {
+          continue;
+        }
+        if (pageContent[langKey] || (langKey.indexOf(deprecatedMark) >= 0)) {
+          merged[langKey] = lang[langKey]
+        } else {
+          merged[langKey] = lang[langKey] // 不改变原来的，避免误标记
+          merged[langKey + deprecatedMark] = lang[langKey]
+        }
       }
+      for (let key in pageContent) {
+        if (!lang[key]) {
+          merged[key] = pageContent[key]
+        }
+      }
+      content[pageKeyName] = merged;
     }
-    content[pageKeyName] = merged;
-  }
-  content.autoi18n_version = 3;
-  const sorted = getSortedObjectString(content);
-  setTimeout(()=>{ // timeout之后再写文件，否则webpack不会打包json文件更新
+    content.autoi18n_version = 3;
+    const sorted = getSortedObjectString(content);
+
     console.log('write file ' + filename)
     fs.writeFileSync(filePath, sorted);
-  },1000)
+  }, 1000)
 
 }
 
