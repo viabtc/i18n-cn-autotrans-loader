@@ -77,11 +77,12 @@ let repeatReg;
 function extractAndReplaceChinese(pageKeyName, source, repeatReg, prefix, hashLength) {
   // 去掉comments
   const withoutComment = source
-    .replace(/([^:]\/\/\s.*)|(\/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+\/)/g, '')
-    .replace(/\/\/\s*disable-autoi18n[\s\S]*\/\/\s*disable-autoi18n-end/, ''); // prevent plugin replacing code outside vue instance
+    .replace(/\/\/\s*disable-autoi18n[\s\S]*\/\/\s*disable-autoi18n-end/, '')
+    .replace(/([^:]\/\/\s.*)|(\/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+\/)/g, ''); // prevent plugin replacing code outside vue instance
   const script = withoutComment.match(/\<script\>([\s\S]*?)\<\/script\>/igm);
   const template = withoutComment.match(/\<template\>([\s\S]*)\<\/template\>/igm);
   const pageContent = {};
+  source = source.replace(/([^:]\/\/\s.*)|(\/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+\/)/g, '');
   if (script && script[0] && script[0].length) {
     const importVue = script[0].match(/import\s+Vue\s+from/)
     if (!importVue || importVue.length === 0) {
